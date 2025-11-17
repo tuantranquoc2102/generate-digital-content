@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from apps.backend.core.db import SessionLocal, engine, Base
 from apps.backend.models.transcription import Transcription, JobStatus
 from apps.backend.utils.utils import pack_result
+from apps.backend.services.youtube import download_youtube_audio
 from faster_whisper import WhisperModel
 
 # Load model once when worker starts
@@ -80,6 +81,73 @@ def transcribe_job(transcription_id: str):
         os.remove(audio_path)
 
     except Exception as e:
+        if job:
+            job.status = JobStatus.error
+            job.error = str(e)
+            db.commit()
+
+    finally:
+        db.close()
+
+def transcribe_youtube_job(transcription_id: str):
+    """Process YouTube transcription job"""
+    db: Session = SessionLocal()
+    job = None
+
+    try:
+        job = db.get(Transcription, transcription_id)
+        if not job:
+            return
+
+        job.status = JobStatus.processing
+        db.commit()
+
+        # Download audio từ YouTube
+        print(f"Downloading YouTube audio from: {job.youtube_url}")
+        audio_path, video_title = download_youtube_audio(job.youtube_url)
+        
+        # Update job với title
+        job.title = video_title
+        
+        # Upload audio file lên MinIO
+        client = s3_client()
+        bucket = os.getenv('S3_BUCKET', 'uploads')
+        file_key = f"youtube/{job.id}.mp3"
+        
+        print(f"Uploading to MinIO: {bucket}/{file_key}")
+        client.upload_file(audio_path, bucket, file_key)
+        
+        # Update job với file info
+        job.file_key = file_key
+        job.file_url = f"{os.getenv('S3_PUBLIC_ENDPOINT', 'http://localhost:9000')}/{bucket}/{file_key}"
+        db.commit()
+
+        # Transcribe audio với faster-whisper
+        print(f"Transcribing audio: {audio_path}")
+        segments, info = model.transcribe(audio_path, beam_size=5)
+        text = ""
+        seg_list = []
+
+        for seg in segments:
+            text += seg.text + " "
+            seg_list.append({
+                "id": seg.id,
+                "start": seg.start,
+                "end": seg.end,
+                "text": seg.text
+            })
+
+        # Lưu kết quả vào DB
+        job.result_json = pack_result(text=text.strip(), segments=seg_list, language=info.language)
+        job.status = JobStatus.done
+        db.commit()
+
+        # Cleanup local file
+        os.remove(audio_path)
+        print(f"✅ YouTube transcription completed for: {video_title}")
+
+    except Exception as e:
+        print(f"❌ YouTube transcription error: {e}")
         if job:
             job.status = JobStatus.error
             job.error = str(e)

@@ -11,3 +11,5 @@ python-multipart==0.0.9
 faster-whisper==1.2.1
 # Python HTTP for Humans.
 requests==2.31.0
+# YouTube audio downloader
+yt-dlp==2024.11.18

@@ -28,7 +28,19 @@ export async function getTranscription(id: string) {
     error?: string;
     file_url?: string;
     file_key?: string;
+    youtube_url?: string;
+    title?: string;
   }>;
+}
+
+export async function createYouTubeTranscription(body: { youtube_url: string; language?: string; engine?: string }) {
+  const r = await fetch(`${API_BASE}/youtube/transcriptions`, {
+    method: "POST", 
+    headers: { "Content-Type": "application/json" }, 
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error("create YouTube job failed");
+  return r.json() as Promise<{ id: string; status: string; youtube_url: string }>;
 }
 
 // Helper function để tạo direct download URL cho MP3 file từ MinIO

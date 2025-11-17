@@ -9,7 +9,9 @@ from apps.backend.schemas import (
   PresignIn, 
   PresignOut, 
   TranscriptionIn,
-  TranscriptionOut)
+  TranscriptionOut,
+  YouTubeTranscriptionIn,
+  YouTubeTranscriptionOut)
 from apps.backend.services.storage import presign_put
 from apps.backend.services.redis_queue import q   # <- lấy q từ redis_queue
 
@@ -79,5 +81,36 @@ def get_transcription(tid: str, db: Session = Depends(get_db)):
         result=result, 
         error=t.error,
         file_url=t.file_url,
+        file_key=t.file_key
+    )
+
+@app.post("/youtube/transcriptions", response_model=YouTubeTranscriptionOut)
+def create_youtube_transcription(body: YouTubeTranscriptionIn, db: Session = Depends(get_db)):
+    tid = str(uuid.uuid4())
+    
+    # Tạo job với YouTube URL, file sẽ được download trong worker
+    t = Transcription(
+        id=tid,
+        status=JobStatus.queued,
+        file_key=f"youtube/{tid}.mp3",  # Placeholder cho file key
+        engine=body.engine or "local",
+        language=body.language,
+        youtube_url=body.youtube_url,
+        file_url=""  # Sẽ được update sau khi download
+    )
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    
+    # enqueue worker cho YouTube processing
+    q.enqueue("apps.backend.worker.transcribe_youtube_job", tid)
+    
+    return YouTubeTranscriptionOut(
+        id=tid,
+        status="queued",
+        youtube_url=body.youtube_url,
+        result=None,
+        error=None,
+        file_url="",
         file_key=t.file_key
     )
