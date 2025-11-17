@@ -1,0 +1,10 @@
+.git
+**/__pycache__
+**/.pytest_cache
+**/.next
+**/node_modules
+**/.DS_Store
+**/.venv
+**/venv
+**/*.log
+.DS_Store
