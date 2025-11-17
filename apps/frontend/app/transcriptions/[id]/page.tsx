@@ -29,6 +29,31 @@ export default function JobPage() {
       {data && (
         <div className="space-y-3">
           <p>Status: <b>{data.status}</b></p>
+          
+          {/* Display YouTube info if available */}
+          {data.youtube_url && (
+            <div className="bg-blue-50 p-3 rounded">
+              <h3 className="font-medium text-blue-800">📺 YouTube Video</h3>
+              {data.title && <p className="text-sm text-blue-600">Title: {data.title}</p>}
+              <a 
+                href={data.youtube_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline text-sm"
+              >
+                {data.youtube_url}
+              </a>
+            </div>
+          )}
+          
+          {/* Display file info for regular uploads */}
+          {data.file_key && !data.youtube_url && (
+            <div className="bg-green-50 p-3 rounded">
+              <h3 className="font-medium text-green-800">🎵 Audio File</h3>
+              <p className="text-sm text-green-600">File: {data.file_key}</p>
+            </div>
+          )}
+          
           {data.error && <pre className="text-red-600">{data.error}</pre>}
           {data.result?.text && (
             <>

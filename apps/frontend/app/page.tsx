@@ -76,6 +76,20 @@ export default function Home() {
           </div>
         )}
       </div>
+      
+      <div className="flex gap-4 text-sm">
+        <span className="px-4 py-2 bg-gray-100 rounded">
+          🎵 Upload MP3
+        </span>
+        <span className="text-gray-500">hoặc</span>
+        <a 
+          href="/youtube"
+          className="px-4 py-2 border rounded hover:bg-gray-50"
+        >
+          📺 YouTube Transcription →
+        </a>
+      </div>
+      
       <p className="text-sm text-gray-500">MinIO console: http://localhost:9001 (user: minio / pass: minio123)</p>
     </main>
   );

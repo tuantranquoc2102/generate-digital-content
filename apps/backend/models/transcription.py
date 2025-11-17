@@ -24,5 +24,8 @@ class Transcription(Base):
     result_json = mapped_column(Text, nullable=True)
     file_url = mapped_column(String)   # có thể là path local hoặc tên file trong S3
     error = mapped_column(Text, nullable=True)
+    # YouTube fields
+    youtube_url = mapped_column(String, nullable=True)  # URL gốc của YouTube video
+    title = mapped_column(String, nullable=True)        # Tiêu đề video
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), onupdate=func.now())

@@ -18,7 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Cài g++/libpq để build/psycopg2 (slim cần libpq-dev)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev curl && \
+    build-essential libpq-dev curl ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
