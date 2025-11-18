@@ -18,7 +18,7 @@ def download_youtube_audio(youtube_url: str) -> Tuple[str, str]:
     output_template = os.path.join(temp_dir, '%(title).50s.%(ext)s')
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best',
         'outtmpl': output_template,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -27,6 +27,35 @@ def download_youtube_audio(youtube_url: str) -> Tuple[str, str]:
         }],
         'quiet': True,
         'no_warnings': True,
+        # Enhanced anti-bot measures
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Accept-Encoding': 'gzip,deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        },
+        'extractor_retries': 5,
+        'fragment_retries': 5,
+        'retries': 5,
+        'file_access_retries': 3,
+        'sleep_interval_requests': 2,
+        'sleep_interval': 2,
+        'max_sleep_interval': 10,
+        # Additional bypass options
+        'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'extract_flat': False,
+        'simulate': False,
+        'skip_download': False,
+        'writethumbnail': False,
+        'writeinfojson': False,
+        'writeautomaticsub': False,
+        'writesubtitles': False,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
