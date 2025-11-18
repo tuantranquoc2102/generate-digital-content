@@ -1,96 +1,80 @@
-"use client";
-
-import { useState } from "react";
-import { presign, createTranscription } from "./api-client";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState<number>(0);
-  const [busy, setBusy] = useState(false);
-  const router = useRouter();
-
-  async function handleUpload() {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const contentType = file.type || "application/octet-stream";
-
-      // 1) presign
-      const { upload_url, file_key } = await presign(file.name, contentType);
-      console.log("Got presigned URL:", upload_url);
-      
-      // 2) Upload via Next.js proxy to MinIO
-      console.log('Uploading file via proxy with URL:', upload_url);
-      const putResp = await fetch(`/api/minio-proxy`, {
-        method: "PUT",
-        headers: { 
-          "Content-Type": contentType,
-          "x-minio-url": upload_url
-        },
-        body: file,
-      });
-
-      console.log('Upload response status:', putResp.status);
-      if (!putResp.ok) {
-        const errorText = await putResp.text().catch(() => "Unknown error");
-        console.error("Upload error response:", errorText);
-        throw new Error(`Upload failed ${putResp.status}: ${errorText}`);
-      }
-      console.log('File uploaded successfully');
-
-      // 3) tạo job
-      const job = await createTranscription({ fileKey: file_key, language: "auto", engine: "local" });
-      router.push(`/transcriptions/${job.id}`);
-    } catch (err: any) {
-      console.error("Upload failed:", err);
-      alert(`Upload failed: ${err?.message || err}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
-      <h1 className="text-3xl font-bold">any2text — MP3 to Text (Skeleton)</h1>
-      <div className="w-full max-w-xl border rounded-lg p-6">
-        <input
-          type="file"
-          accept="audio/*,video/*"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="mb-4"
-        />
-        <button
-          disabled={!file || busy}
-          onClick={handleUpload}
-          className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
-        >
-          {busy ? "Uploading..." : "Upload & Transcribe"}
-        </button>
-        {progress > 0 && (
-          <div className="mt-4">
-            <div className="w-full bg-gray-200 h-2 rounded">
-              <div className="bg-black h-2 rounded" style={{ width: `${progress}%` }}></div>
+    <div className="container mx-auto px-4 py-12 text-center">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-5xl font-bold text-gray-900 mb-6">
+          Digital Content Creator
+        </h1>
+        <p className="text-xl text-gray-600 mb-12">
+          Transform your YouTube videos into accurate transcriptions with AI-powered speech recognition
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+          <Link 
+            href="/youtube"
+            className="group bg-blue-600 text-white p-8 rounded-xl shadow-lg hover:bg-blue-700 transition-all duration-300 hover:scale-105"
+          >
+            <div className="text-4xl mb-4">🎬</div>
+            <h3 className="text-xl font-semibold mb-2">Create Transcription</h3>
+            <p className="text-blue-100">
+              Paste a YouTube URL and get accurate transcriptions with language optimization
+            </p>
+          </Link>
+
+          <Link 
+            href="/transcriptions"
+            className="group bg-gray-800 text-white p-8 rounded-xl shadow-lg hover:bg-gray-900 transition-all duration-300 hover:scale-105"
+          >
+            <div className="text-4xl mb-4">📝</div>
+            <h3 className="text-xl font-semibold mb-2">View Your Jobs</h3>
+            <p className="text-gray-300">
+              Track progress and manage all your transcription jobs in one place
+            </p>
+          </Link>
+        </div>
+
+        <div className="mt-16 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-8">Features</h2>
+          <div className="grid md:grid-cols-3 gap-6 text-left">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="text-2xl mb-3">🌍</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Multi-Language Support</h3>
+              <p className="text-gray-600 text-sm">
+                Supports Vietnamese, English, Chinese, Japanese with optimized accuracy
+              </p>
             </div>
-            <p className="text-sm mt-2">{progress}%</p>
+            
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="text-2xl mb-3">⚡</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Fast Processing</h3>
+              <p className="text-gray-600 text-sm">
+                Advanced chunked processing for videos up to 2 hours long
+              </p>
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="text-2xl mb-3">📊</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Progress Tracking</h3>
+              <p className="text-gray-600 text-sm">
+                Real-time status updates and comprehensive job management
+              </p>
+            </div>
           </div>
-        )}
+        </div>
+        
+        <div className="mt-16 p-6 bg-gray-50 rounded-xl">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Legacy File Upload</h3>
+          <p className="text-gray-600 mb-4">Still need to upload audio files directly?</p>
+          <Link 
+            href="/legacy-upload"
+            className="inline-block px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+          >
+            Upload Audio Files
+          </Link>
+        </div>
       </div>
-      
-      <div className="flex gap-4 text-sm">
-        <span className="px-4 py-2 bg-gray-100 rounded">
-          🎵 Upload MP3
-        </span>
-        <span className="text-gray-500">hoặc</span>
-        <a 
-          href="/youtube"
-          className="px-4 py-2 border rounded hover:bg-gray-50"
-        >
-          📺 YouTube Transcription →
-        </a>
-      </div>
-      
-      <p className="text-sm text-gray-500">MinIO console: http://localhost:9001 (user: minio / pass: minio123)</p>
-    </main>
+    </div>
   );
 }

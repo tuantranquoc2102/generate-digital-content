@@ -1,16 +1,40 @@
 // apps/frontend/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "any2text — MP3 to Text",
-  description: "Skeleton Next.js + FastAPI + Redis + MinIO",
+  title: "Digital Content Creator",
+  description: "YouTube to Text Transcription Service",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <nav className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="container mx-auto flex items-center justify-between">
+            <Link href="/" className="text-xl font-bold text-gray-900">
+              Digital Content Creator
+            </Link>
+            <div className="flex space-x-4">
+              <Link 
+                href="/youtube" 
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                Create Transcription
+              </Link>
+              <Link 
+                href="/transcriptions" 
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                View Jobs
+              </Link>
+            </div>
+          </div>
+        </nav>
+        <main>{children}</main>
+      </body>
     </html>
   );
 }

@@ -1,8 +1,9 @@
 import os, json, uuid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi import Depends
+from typing import List
 from apps.backend.core.db import SessionLocal, engine, Base
 from apps.backend.models.transcription import Transcription, JobStatus
 from apps.backend.schemas import (
@@ -69,6 +70,50 @@ def create_transcription(body: TranscriptionIn, db: Session = Depends(get_db)):
         file_url=file_url,
         file_key=body.fileKey
     )
+
+@app.get("/transcriptions", response_model=List[TranscriptionOut])
+def list_transcriptions(
+    limit: int = Query(default=20, le=100, description="Number of items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+    status: str = Query(default=None, description="Filter by status: queued, processing, done, error"),
+    db: Session = Depends(get_db)
+):
+    """Get list of all transcriptions with pagination and filtering"""
+    query = db.query(Transcription)
+    
+    # Filter by status if provided
+    if status:
+        try:
+            status_enum = JobStatus(status)
+            query = query.filter(Transcription.status == status_enum)
+        except ValueError:
+            raise HTTPException(400, f"Invalid status. Must be one of: {[s.value for s in JobStatus]}")
+    
+    # Order by created_at descending (newest first)
+    query = query.order_by(Transcription.created_at.desc())
+    
+    # Apply pagination
+    transcriptions = query.offset(offset).limit(limit).all()
+    
+    # Convert to response format
+    results = []
+    for t in transcriptions:
+        result = json.loads(t.result_json) if t.result_json else None
+        results.append(TranscriptionOut(
+            id=t.id,
+            status=t.status.value,
+            result=result,
+            error=t.error,
+            file_url=t.file_url,
+            file_key=t.file_key,
+            youtube_url=getattr(t, 'youtube_url', None),
+            title=getattr(t, 'title', None),
+            created_at=t.created_at,
+            language=t.language,
+            engine=t.engine
+        ))
+    
+    return results
 
 @app.get("/transcriptions/{tid}", response_model=TranscriptionOut)
 def get_transcription(tid: str, db: Session = Depends(get_db)):
