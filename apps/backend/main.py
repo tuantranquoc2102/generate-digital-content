@@ -59,8 +59,8 @@ def create_transcription(body: TranscriptionIn, db: Session = Depends(get_db)):
     db.add(t)
     db.commit()
     db.refresh(t)
-    # enqueue worker - sử dụng string path để tránh circular import
-    q.enqueue("apps.backend.worker.transcribe_job", tid)
+    # enqueue worker - sử dụng string path để tránh circular import với timeout 2 hours
+    q.enqueue("apps.backend.worker.transcribe_job", tid, job_timeout=7200)
     return TranscriptionOut(
         id=tid, 
         status="queued", 
@@ -102,8 +102,8 @@ def create_youtube_transcription(body: YouTubeTranscriptionIn, db: Session = Dep
     db.commit()
     db.refresh(t)
     
-    # enqueue worker cho YouTube processing
-    q.enqueue("apps.backend.worker.transcribe_youtube_job", tid)
+    # enqueue worker cho YouTube processing với timeout 2 hours
+    q.enqueue("apps.backend.worker.transcribe_youtube_job", tid, job_timeout=7200)
     
     return YouTubeTranscriptionOut(
         id=tid,
