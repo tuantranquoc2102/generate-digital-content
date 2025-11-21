@@ -1,6 +1,8 @@
 # schemas/transcription.py
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
+
 
 # Schema for creating a transcription
 # Input data
@@ -18,3 +20,8 @@ class TranscriptionOut(BaseModel):
     error: Optional[str] = None
     file_url: Optional[str] = None
     file_key: Optional[str] = None
+    title: Optional[str] = None
+    created_at: Optional[datetime] = None
+    youtube_url: Optional[str] = None
+    language: Optional[str] = None
+    engine: Optional[str] = None
