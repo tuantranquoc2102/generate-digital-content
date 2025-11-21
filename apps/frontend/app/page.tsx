@@ -11,7 +11,7 @@ export default function Home() {
           Transform your YouTube videos into accurate transcriptions with AI-powered speech recognition
         </p>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
           <Link 
             href="/youtube"
             className="group bg-blue-600 text-white p-8 rounded-xl shadow-lg hover:bg-blue-700 transition-all duration-300 hover:scale-105"
@@ -31,6 +31,17 @@ export default function Home() {
             <h3 className="text-xl font-semibold mb-2">View Your Jobs</h3>
             <p className="text-gray-300">
               Track progress and manage all your transcription jobs in one place
+            </p>
+          </Link>
+
+          <Link 
+            href="/channel-crawler"
+            className="group bg-green-600 text-white p-8 rounded-xl shadow-lg hover:bg-green-700 transition-all duration-300 hover:scale-105"
+          >
+            <div className="text-4xl mb-4">📺</div>
+            <h3 className="text-xl font-semibold mb-2">Channel Crawler</h3>
+            <p className="text-green-100">
+              Transcribe all videos from a YouTube channel automatically
             </p>
           </Link>
         </div>

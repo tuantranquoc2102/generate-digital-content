@@ -1,8 +1,8 @@
 # Endpoint cho transcription
 
 import enum
-from sqlalchemy import Column, String, Text, DateTime, Enum
-from sqlalchemy.orm import mapped_column
+from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey
+from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.sql import func
 from apps.backend.core.db import Base
 
@@ -27,5 +27,10 @@ class Transcription(Base):
     # YouTube fields
     youtube_url = mapped_column(String, nullable=True)  # URL gốc của YouTube video
     title = mapped_column(String, nullable=True)        # Tiêu đề video
+    
+    # Channel crawler relationship
+    channel_crawler_id = mapped_column(String, ForeignKey("channel_crawlers.id"), nullable=True)
+    channel_crawler = relationship("ChannelCrawler", back_populates="transcription_jobs")
+    
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), onupdate=func.now())
