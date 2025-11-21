@@ -1,4 +1,4 @@
-import time, json, os
+import time, json, os, uuid, re
 import boto3
 from redis import Redis
 import requests
@@ -7,6 +7,7 @@ from apps.backend.services.redis_queue import redis_conn
 from sqlalchemy.orm import Session
 from apps.backend.core.db import SessionLocal, engine, Base
 from apps.backend.models.transcription import Transcription, JobStatus
+from apps.backend.models.channel_crawler import ChannelCrawler, ChannelCrawlerStatus
 from apps.backend.utils.utils import pack_result
 from apps.backend.services.youtube import download_youtube_audio
 from faster_whisper import WhisperModel
@@ -281,6 +282,118 @@ Base.metadata.create_all(bind=engine)
 #             db.commit()
 #     finally:
 #         db.close()
+
+def crawl_channel_job(crawler_id: str):
+    """Crawl all videos from a YouTube channel and create transcription jobs"""
+    from apps.backend.services.redis_queue import q
+    import yt_dlp
+    
+    db: Session = SessionLocal()
+    crawler = None
+
+    try:
+        crawler = db.get(ChannelCrawler, crawler_id)
+        if not crawler:
+            print(f"Channel crawler {crawler_id} not found")
+            return
+
+        crawler.status = ChannelCrawlerStatus.processing
+        db.commit()
+        print(f"Starting channel crawl for: {crawler.channel_url}")
+
+        # Configure yt-dlp for channel crawling
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,  # Only get video info, don't download
+            'playlistend': crawler.max_videos,  # Limit number of videos
+        }
+        
+        # Add filter for video type
+        if crawler.video_type == "shorts":
+            ydl_opts['match_filter'] = lambda info: None if (
+                info.get('duration', 0) <= 60 and 
+                'shorts' in (info.get('webpage_url', '') or info.get('url', ''))
+            ) else f"Not a short video: {info.get('duration', 0)}s"
+        elif crawler.video_type == "videos":
+            ydl_opts['match_filter'] = lambda info: None if (
+                info.get('duration', 0) > 60
+            ) else f"Too short for regular video: {info.get('duration', 0)}s"
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extract channel/playlist info
+            try:
+                info = ydl.extract_info(crawler.channel_url, download=False)
+                if not info:
+                    raise Exception("Could not extract channel information")
+                
+                # Get video entries
+                entries = info.get('entries', [])
+                if not entries:
+                    raise Exception("No videos found in channel")
+                
+                crawler.total_videos_found = len(entries)
+                db.commit()
+                
+                print(f"Found {len(entries)} videos in channel")
+                
+                jobs_created = 0
+                for entry in entries[:crawler.max_videos]:
+                    try:
+                        video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                        video_title = entry.get('title', 'Unknown Title')
+                        
+                        # Create transcription job
+                        job_id = str(uuid.uuid4())
+                        file_key = f"youtube/{job_id}.mp3"
+                        
+                        transcription_job = Transcription(
+                            id=job_id,
+                            status=JobStatus.queued,
+                            file_key=file_key,
+                            engine=crawler.engine,
+                            language=crawler.language,
+                            youtube_url=video_url,
+                            title=video_title,
+                            channel_crawler_id=crawler.id,
+                            file_url=""
+                        )
+                        
+                        db.add(transcription_job)
+                        db.commit()
+                        
+                        # Enqueue transcription job
+                        q.enqueue("apps.backend.worker.transcribe_youtube_job", job_id, job_timeout=7200)
+                        jobs_created += 1
+                        
+                        print(f"Created transcription job for: {video_title[:50]}...")
+                        
+                    except Exception as e:
+                        print(f"Error creating job for video {entry.get('title', 'Unknown')}: {str(e)}")
+                        continue
+                
+                crawler.total_jobs_created = jobs_created
+                crawler.status = ChannelCrawlerStatus.done
+                db.commit()
+                
+                print(f"Channel crawl completed. Created {jobs_created} transcription jobs")
+                
+            except Exception as e:
+                error_msg = f"Error extracting channel info: {str(e)}"
+                print(error_msg)
+                crawler.error = error_msg
+                crawler.status = ChannelCrawlerStatus.error
+                db.commit()
+                
+    except Exception as e:
+        error_msg = f"Channel crawler error: {str(e)}"
+        print(error_msg)
+        if crawler:
+            crawler.error = error_msg
+            crawler.status = ChannelCrawlerStatus.error
+            db.commit()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     listen = ["transcribe"]

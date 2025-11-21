@@ -30,6 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               >
                 View Jobs
               </Link>
+              <Link 
+                href="/channel-crawler" 
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                Channel Crawler
+              </Link>
             </div>
           </div>
         </nav>

@@ -6,6 +6,7 @@ from fastapi import Depends
 from typing import List
 from apps.backend.core.db import SessionLocal, engine, Base
 from apps.backend.models.transcription import Transcription, JobStatus
+from apps.backend.models.channel_crawler import ChannelCrawler, ChannelCrawlerStatus
 from apps.backend.schemas import (
   PresignIn, 
   PresignOut, 
@@ -13,6 +14,7 @@ from apps.backend.schemas import (
   TranscriptionOut,
   YouTubeTranscriptionIn,
   YouTubeTranscriptionOut)
+from apps.backend.schemas.channel import ChannelCrawlerIn, ChannelCrawlerOut
 from apps.backend.services.storage import presign_put
 from apps.backend.services.redis_queue import q   # <- lấy q từ redis_queue
 
@@ -158,4 +160,64 @@ def create_youtube_transcription(body: YouTubeTranscriptionIn, db: Session = Dep
         error=None,
         file_url="",
         file_key=t.file_key
+    )
+
+@app.post("/channel/crawler", response_model=ChannelCrawlerOut)
+def crawl_channel(body: ChannelCrawlerIn, db: Session = Depends(get_db)):
+    """Crawl all videos from a YouTube channel and create transcription jobs"""
+    crawler_id = str(uuid.uuid4())
+    
+    # Create channel crawler record
+    crawler = ChannelCrawler(
+        id=crawler_id,
+        status=ChannelCrawlerStatus.queued,
+        channel_url=body.channel_url,
+        language=body.language,
+        engine=body.engine,
+        max_videos=body.max_videos,
+        video_type=body.video_type
+    )
+    db.add(crawler)
+    db.commit()
+    db.refresh(crawler)
+    
+    # Enqueue channel crawler job với timeout 1 hour
+    q.enqueue("apps.backend.worker.crawl_channel_job", crawler_id, job_timeout=3600)
+    
+    return ChannelCrawlerOut(
+        channel_crawler_id=crawler_id,
+        status="queued",
+        channel_url=body.channel_url,
+        total_videos_found=0,
+        total_jobs_created=0,
+        jobs=[],
+        error=None
+    )
+
+@app.get("/channel/crawler/{crawler_id}", response_model=ChannelCrawlerOut)
+def get_channel_crawler(crawler_id: str, db: Session = Depends(get_db)):
+    """Get channel crawler status and results"""
+    crawler = db.query(ChannelCrawler).filter(ChannelCrawler.id == crawler_id).first()
+    if not crawler:
+        raise HTTPException(404, "Channel crawler not found")
+    
+    # Get transcription jobs for this crawler
+    jobs = []
+    transcriptions = db.query(Transcription).filter(Transcription.channel_crawler_id == crawler_id).all()
+    for t in transcriptions:
+        jobs.append({
+            "job_id": t.id,
+            "video_url": t.youtube_url or "",
+            "title": t.title or "Unknown",
+            "status": t.status.value
+        })
+    
+    return ChannelCrawlerOut(
+        channel_crawler_id=crawler.id,
+        status=crawler.status.value,
+        channel_url=crawler.channel_url,
+        total_videos_found=crawler.total_videos_found,
+        total_jobs_created=crawler.total_jobs_created,
+        jobs=jobs,
+        error=crawler.error
     )
