@@ -6,7 +6,7 @@ from rq import Worker, Queue, Connection
 from apps.backend.services.redis_queue import redis_conn
 from sqlalchemy.orm import Session
 from apps.backend.core.db import SessionLocal, engine, Base
-from apps.backend.models.transcription import Transcription, JobStatus
+from apps.backend.models.transcription import TranscriptionJob, TranscriptionDetail, TranscriptionImage, JobStatus, ImageType
 from apps.backend.models.channel_crawler import ChannelCrawler, ChannelCrawlerStatus
 from apps.backend.utils.utils import pack_result
 from apps.backend.services.youtube import download_youtube_audio
@@ -40,175 +40,97 @@ def download_from_s3(url, out_path):
     return out_path
 
 def transcribe_job(transcription_id: str):
+    """Unified transcription job - handles both uploaded files and YouTube audio"""
     db: Session = SessionLocal()
     job = None
 
     try:
-        job = db.get(Transcription, transcription_id)
+        job = db.get(TranscriptionJob, transcription_id)
         if not job:
+            print(f"❌ Job not found: {transcription_id}")
             return
+
+        print(f"🎯 Starting transcription job: {transcription_id}")
+        print(f"📁 File key: {job.file_key}")
+        if job.youtube_url:
+            print(f"📺 YouTube source: {job.youtube_url}")
 
         job.status = JobStatus.processing
         db.commit()
 
-        # Tải audio từ MinIO về /tmp/ 
+        # Download audio từ MinIO về /tmp/ 
         audio_path = f"/tmp/{job.id}.mp3"
-        # Download file từ S3/MinIO sử dụng boto3 thay vì HTTP URL
         client = s3_client()
         bucket = os.getenv('S3_BUCKET', 'uploads')
-        print(f"Downloading from bucket: {bucket}, key: {job.file_key}")
+        
+        print(f"⬇️ Downloading from MinIO: {bucket}/{job.file_key}")
         client.download_file(bucket, job.file_key, audio_path)
+        print(f"✅ Downloaded to: {audio_path}")
 
-        # Chạy Faster-Whisper trên CPU
-        print(f"Transcribing audio: {audio_path}")
+        # Enhanced transcription với optimized parameters
+        print(f"🎙️ Starting transcription...")
         
         # Determine language for transcription
         transcribe_language = None
         if job.language and job.language != "auto":
             transcribe_language = job.language
             
-        print(f"Using language: {transcribe_language or 'auto-detect'}")
-        segments, info = model.transcribe(
-            audio_path, 
-            beam_size=5,
-            language=transcribe_language  # None means auto-detect
-        )
-        text = ""
-        seg_list = []
-
-        for seg in segments:
-            text += seg.text + " "
-            seg_list.append({
-                "id": seg.id,
-                "start": seg.start,
-                "end": seg.end,
-                "text": seg.text
-            })
-
-        # Lưu kết quả vào DB
-        job.result_json = pack_result(text=text.strip(), segments=seg_list, language=info.language)
-        job.status = JobStatus.done
-        db.commit()
-
-        # Xóa file tạm
-        os.remove(audio_path)
-
-    except Exception as e:
-        if job:
-            job.status = JobStatus.error
-            job.error = str(e)
-            db.commit()
-
-    finally:
-        db.close()
-
-def transcribe_youtube_job(transcription_id: str):
-    """Process YouTube transcription job"""
-    db: Session = SessionLocal()
-    job = None
-
-    try:
-        job = db.get(Transcription, transcription_id)
-        if not job:
-            return
-
-        job.status = JobStatus.processing
-        db.commit()
-
-        # Download audio từ YouTube
-        print(f"Downloading YouTube audio from: {job.youtube_url}")
-        audio_path, video_title = download_youtube_audio(job.youtube_url)
+        print(f"🌍 Using language: {transcribe_language or 'auto-detect'}")
         
-        # Update job với title
-        job.title = video_title
-        
-        # Upload audio file lên MinIO
-        client = s3_client()
-        bucket = os.getenv('S3_BUCKET', 'uploads')
-        file_key = f"youtube/{job.id}.mp3"
-        
-        print(f"Uploading to MinIO: {bucket}/{file_key}")
-        client.upload_file(audio_path, bucket, file_key)
-        
-        # Update job với file info
-        job.file_key = file_key
-        job.file_url = f"{os.getenv('S3_PUBLIC_ENDPOINT', 'http://localhost:9000')}/{bucket}/{file_key}"
-        db.commit()
-
-        # Transcribe audio với faster-whisper
-        print(f"Transcribing audio: {audio_path}")
-        
-        # Determine language for transcription
-        transcribe_language = None
-        if job.language and job.language != "auto":
-            transcribe_language = job.language
-        
-        print(f"Using language: {transcribe_language or 'auto-detect'}")
-        
-        # Enhanced transcription parameters for better language detection
+        # Enhanced transcription parameters
         transcription_params = {
             'beam_size': 5,
             'language': transcribe_language,  # None means auto-detect
             'task': 'transcribe',  # Always transcribe, not translate
             'temperature': 0.0,  # More deterministic output
-            'compression_ratio_threshold': 2.4,  # Default threshold
-            'log_prob_threshold': -1.0,  # Accept lower probability segments
-            'no_speech_threshold': 0.6,  # Default speech detection threshold
+            'compression_ratio_threshold': 2.4,
+            'log_prob_threshold': -1.0,
+            'no_speech_threshold': 0.6,
+            'word_timestamps': False,  # Disable for speed
+            'condition_on_previous_text': True,
         }
         
-        # For Vietnamese, add special handling
+        # Language-specific optimizations
         if transcribe_language == 'vi':
             transcription_params.update({
-                'temperature': [0.0, 0.2, 0.4],  # Fewer temperatures for speed
-                'beam_size': 3,  # Smaller beam for efficiency
-                'log_prob_threshold': -1.5,  # More lenient for Vietnamese
-                'no_speech_threshold': 0.4,  # More sensitive speech detection
-                'word_timestamps': False,  # Disable word timestamps for speed
-                'condition_on_previous_text': True,  # Better context for Vietnamese
+                'temperature': [0.0, 0.2, 0.4],
+                'beam_size': 3,
+                'log_prob_threshold': -1.5,
+                'no_speech_threshold': 0.4,
             })
             print("🇻🇳 Using Vietnamese-optimized parameters")
-        else:
-            # For other languages, optimize for speed
-            transcription_params.update({
-                'word_timestamps': False,  # Disable word timestamps for speed
-                'condition_on_previous_text': True,
-            })
         
-        print(f"⏳ Starting transcription with timeout protection...")
-        
-        # For very long audio files (>20 minutes), use chunked processing
-        import librosa
+        # Audio duration analysis for long content optimization
         try:
-            # Get audio duration first
+            import librosa
             y, sr = librosa.load(audio_path, sr=None)
             duration = len(y) / sr
-            print(f"📊 Audio duration: {duration:.1f} seconds ({duration/60:.1f} minutes)")
+            print(f"📊 Audio duration: {duration:.1f}s ({duration/60:.1f}min)")
             
-            # If audio is longer than 20 minutes, process in chunks
             if duration > 1200:  # 20 minutes
-                print("🔄 Long audio detected - using chunked processing for efficiency...")
+                print("🔄 Long audio detected - using chunked processing...")
                 transcription_params.update({
-                    'vad_filter': True,  # Use Voice Activity Detection
+                    'vad_filter': True,
                     'vad_parameters': dict(min_silence_duration_ms=500),
-                    'initial_prompt': None,  # Reset prompt for each chunk
+                    'initial_prompt': None,
                 })
-            
         except Exception as e:
             print(f"⚠️ Could not analyze audio duration: {e}")
             duration = 0
         
+        print(f"⏳ Starting transcription with timeout protection...")
         segments, info = model.transcribe(audio_path, **transcription_params)
         print(f"🎯 Transcription completed - Language: {info.language}, Duration: {info.duration:.2f}s")
         
-        # Process segments with progress tracking for long content
+        # Process segments with progress tracking
         text = ""
         seg_list = []
-        total_segments = sum(1 for _ in segments)  # Count total segments
+        
+        segments_list = list(segments)  # Convert to list once
+        total_segments = len(segments_list)
         print(f"📝 Processing {total_segments} segments...")
 
-        # Reset segments iterator and process
-        segments, _ = model.transcribe(audio_path, **transcription_params)
-        for i, seg in enumerate(segments):
+        for i, seg in enumerate(segments_list):
             text += seg.text + " "
             seg_list.append({
                 "id": seg.id,
@@ -218,25 +140,106 @@ def transcribe_youtube_job(transcription_id: str):
             })
             
             # Progress update for every 100 segments in long content
-            if i % 100 == 0 and i > 0:
-                progress = (i / total_segments) * 100 if total_segments > 0 else 0
+            if total_segments > 100 and i % 100 == 0 and i > 0:
+                progress = (i / total_segments) * 100
                 print(f"⏳ Progress: {progress:.1f}% ({i}/{total_segments} segments)")
                 
         print(f"✅ Processed {len(seg_list)} segments total")
 
-        # Lưu kết quả vào DB
-        job.result_json = pack_result(text=text.strip(), segments=seg_list, language=info.language)
+        # Save results to database
+        result_data = pack_result(text=text.strip(), segments=seg_list, language=info.language)
+        
+        # Create TranscriptionDetail
+        detail = TranscriptionDetail(
+            id=str(uuid.uuid4()),
+            job_id=job.id,
+            result_json=result_data,
+            formatted_text=text.strip(),
+            word_count=len(text.strip().split()) if text.strip() else 0
+        )
+        db.add(detail)
+        
         job.status = JobStatus.done
         db.commit()
 
-        # Cleanup local file
+        # Cleanup
         os.remove(audio_path)
-        print(f"✅ YouTube transcription completed for: {video_title}")
+        print(f"✅ Transcription completed for job: {transcription_id}")
+        if job.title:
+            print(f"🎬 Title: {job.title}")
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Transcription error: {error_msg}")
+        if job:
+            job.status = JobStatus.error
+            job.error = error_msg
+            db.commit()
+
+    finally:
+        db.close()
+
+def prepare_youtube_job(transcription_id: str):
+    """Download and upload YouTube audio to MinIO, then trigger transcription"""
+    from apps.backend.services.redis_queue import q
+    
+    db: Session = SessionLocal()
+    job = None
+
+    try:
+        job = db.get(TranscriptionJob, transcription_id)
+        if not job:
+            print(f"❌ Job not found: {transcription_id}")
+            return
+
+        print(f"🎯 Preparing YouTube job: {transcription_id}")
+        print(f"📺 YouTube URL: {job.youtube_url}")
+        
+        job.status = JobStatus.processing
+        db.commit()
+
+        # Download audio từ YouTube
+        print(f"⬇️ Downloading YouTube audio from: {job.youtube_url}")
+        try:
+            audio_path, video_title = download_youtube_audio(job.youtube_url)
+            print(f"✅ Downloaded: {audio_path}")
+            print(f"🎬 Title: {video_title}")
+        except Exception as download_error:
+            print(f"❌ Download failed: {download_error}")
+            raise download_error
+        
+        # Update job với title
+        job.title = video_title
+        
+        # Upload audio file lên MinIO
+        client = s3_client()
+        bucket = os.getenv('S3_BUCKET', 'uploads')
+        file_key = f"youtube/{job.id}.mp3"
+        
+        print(f"⬆️ Uploading to MinIO: {bucket}/{file_key}")
+        client.upload_file(audio_path, bucket, file_key)
+        
+        # Update job với file info
+        job.file_key = file_key
+        job.file_url = f"{os.getenv('S3_PUBLIC_ENDPOINT', 'http://localhost:9000')}/{bucket}/{file_key}"
+        job.status = JobStatus.queued  # Reset to queued for transcription
+        db.commit()
+
+        # Cleanup local downloaded file
+        os.remove(audio_path)
+        print(f"🗑️ Cleaned up local file: {audio_path}")
+        
+        print(f"✅ YouTube preparation completed for: {video_title}")
+        print(f"🔄 Enqueueing transcription job...")
+        
+        # Enqueue actual transcription job
+        q.enqueue("apps.backend.worker.transcribe_job", transcription_id, job_timeout=7200)
+        print(f"📤 Transcription job enqueued: {transcription_id}")
 
     except Exception as e:
         error_message = str(e)
         
-        # Provide more user-friendly error messages
+        # Provide user-friendly error messages
         if "HTTP Error 403" in error_message:
             error_message = "YouTube blocked the download request. This video might be region-restricted or have download protection. Please try a different video."
         elif "Video unavailable" in error_message:
@@ -248,7 +251,7 @@ def transcribe_youtube_job(transcription_id: str):
         elif "429" in error_message or "Too Many Requests" in error_message:
             error_message = "YouTube is rate-limiting requests. Please try again later."
         
-        print(f"❌ YouTube transcription error: {error_message}")
+        print(f"❌ YouTube preparation error: {error_message}")
         if job:
             job.status = JobStatus.error
             job.error = error_message
@@ -256,6 +259,11 @@ def transcribe_youtube_job(transcription_id: str):
 
     finally:
         db.close()
+
+# Alias for backward compatibility
+def transcribe_youtube_job(transcription_id: str):
+    """Backward compatibility alias - now just calls prepare_youtube_job"""
+    prepare_youtube_job(transcription_id)
 
 # Ensure tables exist in worker too (first run)
 Base.metadata.create_all(bind=engine)
@@ -347,7 +355,7 @@ def crawl_channel_job(crawler_id: str):
                         job_id = str(uuid.uuid4())
                         file_key = f"youtube/{job_id}.mp3"
                         
-                        transcription_job = Transcription(
+                        transcription_job = TranscriptionJob(
                             id=job_id,
                             status=JobStatus.queued,
                             file_key=file_key,
@@ -362,8 +370,8 @@ def crawl_channel_job(crawler_id: str):
                         db.add(transcription_job)
                         db.commit()
                         
-                        # Enqueue transcription job
-                        q.enqueue("apps.backend.worker.transcribe_youtube_job", job_id, job_timeout=7200)
+                        # Enqueue YouTube preparation job (which will then trigger transcription)
+                        q.enqueue("apps.backend.worker.prepare_youtube_job", job_id, job_timeout=7200)
                         jobs_created += 1
                         
                         print(f"Created transcription job for: {video_title[:50]}...")

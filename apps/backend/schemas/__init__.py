@@ -1,6 +1,13 @@
 from .transcription import (
   TranscriptionIn,
-  TranscriptionOut
+  TranscriptionOut,
+  TranscriptionJobIn,
+  TranscriptionJobOut,
+  TranscriptionDetailIn,
+  TranscriptionDetailOut,
+  TranscriptionImageIn,
+  TranscriptionImageOut,
+  TranscriptionFullOut
 )
 
 from .presign import (
