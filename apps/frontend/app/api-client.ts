@@ -19,17 +19,34 @@ export async function createTranscription(body: { fileKey: string; language?: st
 }
 
 export async function getTranscription(id: string) {
-  const r = await fetch(`${API_BASE}/transcriptions/${id}`, { cache: "no-store" });
-  if (!r.ok) throw new Error("get job failed");
+  const r = await fetch(`/api/transcriptions/${id}/detail`, { cache: "no-store" });
+  if (!r.ok) throw new Error("get transcription detail failed");
+  return r.json() as Promise<{
+    id: string;
+    job_id: string;
+    result_json?: string;
+    formatted_text?: string;
+    summary?: string;
+    keywords?: string;
+    word_count?: number;
+    confidence_score?: number;
+  }>;
+}
+
+export async function getTranscriptionJob(id: string) {
+  const r = await fetch(`/api/transcriptions/${id}`, { cache: "no-store" });
+  if (!r.ok) throw new Error("get transcription job failed");
   return r.json() as Promise<{
     id: string;
     status: string;
-    result?: any;
     error?: string;
     file_url?: string;
     file_key?: string;
     youtube_url?: string;
     title?: string;
+    engine?: string;
+    language?: string;
+    duration?: number;
   }>;
 }
 

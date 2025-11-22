@@ -73,6 +73,8 @@ services:
     build:
       context: .  # Ngữ cảnh build là thư mục gốc của dự án
       dockerfile: ./apps/backend/Dockerfile
+    volumes:
+      - ./apps:/app/apps  # Mount thư mục apps vào /app/apps trong container
     command: ["python", "apps/backend/worker.py"]
     env_file: .env
     environment:

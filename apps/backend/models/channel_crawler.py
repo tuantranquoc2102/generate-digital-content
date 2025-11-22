@@ -31,4 +31,4 @@ class ChannelCrawler(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationship to transcription jobs
-    transcription_jobs = relationship("Transcription", back_populates="channel_crawler")
+    transcription_jobs = relationship("TranscriptionJob", back_populates="channel_crawler")
