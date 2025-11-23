@@ -2,21 +2,14 @@ from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-import enum
-
 from apps.backend.core.db import Base
-
-class ChannelCrawlerStatus(enum.Enum):
-    queued = "queued"
-    processing = "processing"
-    done = "done" 
-    error = "error"
+from apps.backend.models.enums import JobStatus
 
 class ChannelCrawler(Base):
     __tablename__ = "channel_crawlers"
     
     id = Column(String, primary_key=True)
-    status = Column(Enum(ChannelCrawlerStatus), default=ChannelCrawlerStatus.queued)
+    status = Column(Enum(JobStatus), default=JobStatus.queued)
     channel_url = Column(String, nullable=False)
     language = Column(String, default="auto")
     engine = Column(String, default="local")

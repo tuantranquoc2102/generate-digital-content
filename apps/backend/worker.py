@@ -403,6 +403,123 @@ def crawl_channel_job(crawler_id: str):
     finally:
         db.close()
 
+# =============================================================================
+# NEW WORKER FUNCTIONS: OPENAI PROCESSING & IMAGE GENERATION
+# =============================================================================
+
+def format_dialogue_job(transcription_id: str, original_text: str):
+    """Format transcription as dialogue using OpenAI"""
+    from apps.backend.services.openai_service import format_as_dialogue
+    
+    db: Session = SessionLocal()
+    try:
+        job = db.get(TranscriptionJob, transcription_id)
+        if not job or not job.transcription_detail:
+            print(f"❌ Job or detail not found: {transcription_id}")
+            return
+        
+        print(f"🤖 Starting dialogue formatting for {transcription_id}...")
+        
+        # Format dialogue using OpenAI
+        formatted_dialogue = format_as_dialogue(original_text)
+        
+        # Update transcription detail with formatted dialogue
+        job.transcription_detail.summary = formatted_dialogue
+        job.transcription_detail.keywords = "formatted_dialogue"
+        
+        db.commit()
+        print(f"✅ Dialogue formatting completed for {transcription_id}")
+        
+    except Exception as e:
+        print(f"❌ Dialogue formatting failed: {str(e)}")
+        # Optionally save error to job
+        if job and job.transcription_detail:
+            job.transcription_detail.summary = f"Error: {str(e)}"
+            db.commit()
+    finally:
+        db.close()
+
+def generate_image_job(transcription_id: str, prompt: str):
+    """Generate image for dialogue using OpenAI DALL-E"""
+    from apps.backend.services.openai_service import generate_image_with_dalle, generate_image_prompt
+    
+    db: Session = SessionLocal()
+    s3 = s3_client()
+    
+    try:
+        job = db.get(TranscriptionJob, transcription_id)
+        if not job:
+            print(f"❌ Job not found: {transcription_id}")
+            return
+        
+        print(f"🎨 Starting image generation for {transcription_id}...")
+        
+        # Generate enhanced prompt if needed
+        if len(prompt) < 50:
+            enhanced_prompt = generate_image_prompt(prompt)
+            print(f"📝 Enhanced prompt: {enhanced_prompt}")
+            prompt = enhanced_prompt
+        
+        # Generate image with DALL-E
+        image_url = generate_image_with_dalle(prompt)
+        print(f"🖼️  Generated image URL: {image_url}")
+        
+        # Download generated image
+        image_response = requests.get(image_url)
+        image_response.raise_for_status()
+        
+        # Upload to S3/MinIO
+        image_id = str(uuid.uuid4())
+        image_key = f"generated/{transcription_id}/{image_id}.png"
+        
+        s3.put_object(
+            Bucket="uploads",
+            Key=image_key,
+            Body=image_response.content,
+            ContentType="image/png"
+        )
+        
+        # Generate file URL
+        file_url = f"{S3_ENDPOINT}/uploads/{image_key}"
+        
+        # Save image record to database
+        image_record = TranscriptionImage(
+            id=image_id,
+            job_id=transcription_id,
+            image_type=ImageType.generated,
+            file_key=image_key,
+            file_url=file_url,
+            filename=f"generated_{image_id}.png",
+            mime_type="image/png",
+            description=f"Generated from prompt: {prompt[:100]}..."
+        )
+        
+        db.add(image_record)
+        db.commit()
+        
+        print(f"✅ Image generation completed for {transcription_id}: {file_url}")
+        
+    except Exception as e:
+        print(f"❌ Image generation failed: {str(e)}")
+        # Save error as image record for debugging
+        try:
+            error_image = TranscriptionImage(
+                id=str(uuid.uuid4()),
+                job_id=transcription_id,
+                image_type=ImageType.generated,
+                file_key="error",
+                file_url="",
+                filename="error.txt",
+                mime_type="text/plain",
+                description=f"Generation error: {str(e)}"
+            )
+            db.add(error_image)
+            db.commit()
+        except:
+            pass
+    finally:
+        db.close()
+
 if __name__ == "__main__":
     listen = ["transcribe"]
     with Connection(Redis(host=os.getenv("REDIS_HOST","redis"), port=int(os.getenv("REDIS_PORT","6379")))):

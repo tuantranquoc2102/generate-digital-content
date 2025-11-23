@@ -1,18 +1,9 @@
 # TranscriptionJob model
-
-import enum
+from apps.backend.models.enums import JobStatus
 from sqlalchemy import String, Text, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy.sql import func
 from apps.backend.core.db import Base
-
-
-class JobStatus(str, enum.Enum):
-    queued="queued"
-    processing="processing"
-    done="done"
-    error="error"
-
 
 class TranscriptionJob(Base):
     """
