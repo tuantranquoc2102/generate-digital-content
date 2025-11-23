@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { API_BASE } from "../../config";
 import { useParams } from "next/navigation";
 
 export default function JobPage() {
@@ -15,7 +16,7 @@ export default function JobPage() {
     let t: any;
     async function poll() {
       try {
-        const response = await fetch(`http://localhost:8000/transcriptions/${id}/full`, { 
+        const response = await fetch(`${API_BASE}/transcriptions/${id}/full`, { 
           cache: "no-store" 
         });
         if (response.ok) {
@@ -42,7 +43,7 @@ export default function JobPage() {
     try {
       for (const file of Array.from(imageFiles)) {
         // First, presign upload
-        const presignResponse = await fetch("http://localhost:8000/uploads/presign", {
+        const presignResponse = await fetch(`${API_BASE}/uploads/presign`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -65,7 +66,7 @@ export default function JobPage() {
         if (!uploadResponse.ok) throw new Error("Upload failed");
         
         // Register image with transcription
-        const registerResponse = await fetch(`http://localhost:8000/transcriptions/${id}/images`, {
+        const registerResponse = await fetch(`${API_BASE}/transcriptions/${id}/images`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -93,7 +94,7 @@ export default function JobPage() {
   const handleFormatDialogue = async () => {
     setProcessing(prev => ({...prev, dialogue: true}));
     try {
-      const response = await fetch(`http://localhost:8000/transcriptions/${id}/format-dialogue`, {
+      const response = await fetch(`${API_BASE}/transcriptions/${id}/format-dialogue`, {
         method: "POST"
       });
       
@@ -114,7 +115,7 @@ export default function JobPage() {
   const handleGenerateImage = async () => {
     setProcessing(prev => ({...prev, image: true}));
     try {
-      const response = await fetch(`http://localhost:8000/transcriptions/${id}/generate-image`, {
+      const response = await fetch(`${API_BASE}/transcriptions/${id}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

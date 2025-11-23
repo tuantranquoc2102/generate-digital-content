@@ -3,6 +3,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from 'next/link';
+import { API_BASE } from "../config";
 
 interface Transcription {
   id: string;
@@ -44,7 +45,7 @@ export default function TranscriptionsList() {
       const offset = reset ? 0 : (page - 1) * 20;
       const statusParam = filter === 'all' ? '' : `&status=${filter}`;
       
-      const response = await fetch(`/api/transcriptions?limit=20&offset=${offset}${statusParam}`);
+      const response = await fetch(`${API_BASE}/transcriptions?limit=20&offset=${offset}${statusParam}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
