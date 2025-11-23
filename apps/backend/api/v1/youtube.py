@@ -7,7 +7,7 @@ from apps.backend.models.enums import JobStatus
 from apps.backend.schemas import YouTubeTranscriptionIn, YouTubeTranscriptionOut
 from apps.backend.services.redis_queue import q
 from apps.backend.schemas.channel import ChannelCrawlerIn, ChannelCrawlerOut
-from apps.backend.models.channel_crawler import ChannelCrawler, ChannelCrawlerStatus
+from apps.backend.models.channel_crawler import ChannelCrawler
 
 
 router = APIRouter()
@@ -43,7 +43,7 @@ def crawl_channel(body: ChannelCrawlerIn, db: Session = Depends(get_db)):
     crawler_id = str(uuid.uuid4())
     crawler = ChannelCrawler(
         id=crawler_id,
-        status=ChannelCrawlerStatus.queued,
+        status=JobStatus.queued,
         channel_url=body.channel_url,
         language=body.language,
         engine=body.engine,
