@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const limit = searchParams.get('limit') || '20';
     const offset = searchParams.get('offset') || '0';
     const status = searchParams.get('status') || '';
@@ -34,6 +36,8 @@ export async function GET(request: NextRequest) {
     }
     
     const data = await response.json();
+    console.log('Backend returned data:', JSON.stringify(data, null, 2));
+    console.log('Data length:', Array.isArray(data) ? data.length : 'not array');
     return NextResponse.json(data);
     
   } catch (error) {
