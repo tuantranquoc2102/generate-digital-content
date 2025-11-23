@@ -7,7 +7,7 @@ from apps.backend.services.redis_queue import redis_conn
 from sqlalchemy.orm import Session
 from apps.backend.core.db import SessionLocal, engine, Base
 from apps.backend.models.transcription import TranscriptionJob, TranscriptionDetail, TranscriptionImage, JobStatus, ImageType
-from apps.backend.models.channel_crawler import ChannelCrawler, ChannelCrawlerStatus
+from apps.backend.models.channel_crawler import ChannelCrawler
 from apps.backend.utils.utils import pack_result
 from apps.backend.services.youtube import download_youtube_audio
 from faster_whisper import WhisperModel
@@ -305,7 +305,7 @@ def crawl_channel_job(crawler_id: str):
             print(f"Channel crawler {crawler_id} not found")
             return
 
-        crawler.status = ChannelCrawlerStatus.processing
+        crawler.status = JobStatus.processing
         db.commit()
         print(f"Starting channel crawl for: {crawler.channel_url}")
 
@@ -381,7 +381,7 @@ def crawl_channel_job(crawler_id: str):
                         continue
                 
                 crawler.total_jobs_created = jobs_created
-                crawler.status = ChannelCrawlerStatus.done
+                crawler.status = JobStatus.done
                 db.commit()
                 
                 print(f"Channel crawl completed. Created {jobs_created} transcription jobs")
@@ -390,7 +390,7 @@ def crawl_channel_job(crawler_id: str):
                 error_msg = f"Error extracting channel info: {str(e)}"
                 print(error_msg)
                 crawler.error = error_msg
-                crawler.status = ChannelCrawlerStatus.error
+                crawler.status = JobStatus.error
                 db.commit()
                 
     except Exception as e:
@@ -398,7 +398,7 @@ def crawl_channel_job(crawler_id: str):
         print(error_msg)
         if crawler:
             crawler.error = error_msg
-            crawler.status = ChannelCrawlerStatus.error
+            crawler.status = JobStatus.error
             db.commit()
     finally:
         db.close()
