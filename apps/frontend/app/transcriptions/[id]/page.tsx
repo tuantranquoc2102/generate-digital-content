@@ -211,6 +211,7 @@ export default function JobPage() {
             </div>
           )}
 
+
           {/* Formatted Dialogue */}
           {data.detail?.summary && data.detail.keywords === "formatted_dialogue" && (
             <div>
@@ -235,8 +236,32 @@ export default function JobPage() {
             </div>
           )}
 
+          {/* Formatted Text */}
+          {data.detail?.formatted_text && (
+            <div>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: "700", margin: "24px 0 16px 0" }}>
+                📝 Formatted Text
+              </h2>
+              <div style={{ 
+                backgroundColor: "#f3f4f6", 
+                padding: "20px", 
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb"
+              }}>
+                <div style={{ 
+                  whiteSpace: "pre-wrap", 
+                  fontSize: "14px", 
+                  lineHeight: "1.6",
+                  fontFamily: "ui-sans-serif, system-ui, sans-serif"
+                }}>
+                  {data.detail.formatted_text}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* AI Processing Actions */}
-          {data.job?.status === "done" && data.job?.result?.text && (
+          {data.job?.status === "done" && data.detail?.formatted_text && (
             <div style={{
               backgroundColor: "#f8fafc",
               padding: "20px",
