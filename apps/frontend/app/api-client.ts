@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+import { API_BASE } from "./config";
 
 export async function presign(file_name: string, content_type: string) {
   const r = await fetch(`${API_BASE}/uploads/presign`, {
@@ -18,8 +18,9 @@ export async function createTranscription(body: { fileKey: string; language?: st
   return r.json() as Promise<{ id: string; status: string }>;
 }
 
+
 export async function getTranscription(id: string) {
-  const r = await fetch(`/api/transcriptions/${id}/detail`, { cache: "no-store" });
+  const r = await fetch(`${API_BASE}/transcriptions/${id}/detail`, { cache: "no-store" });
   if (!r.ok) throw new Error("get transcription detail failed");
   return r.json() as Promise<{
     id: string;
@@ -33,8 +34,9 @@ export async function getTranscription(id: string) {
   }>;
 }
 
+
 export async function getTranscriptionJob(id: string) {
-  const r = await fetch(`/api/transcriptions/${id}`, { cache: "no-store" });
+  const r = await fetch(`${API_BASE}/transcriptions/${id}`, { cache: "no-store" });
   if (!r.ok) throw new Error("get transcription job failed");
   return r.json() as Promise<{
     id: string;

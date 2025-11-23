@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Forward request to backend
-    const backendUrl = `http://api:8000/transcriptions?${params.toString()}`;
+    const backendUrl = `http://api:8000/api/v1/transcriptions?${params.toString()}`;
     console.log('Fetching from backend:', backendUrl);
     
     const response = await fetch(backendUrl);
