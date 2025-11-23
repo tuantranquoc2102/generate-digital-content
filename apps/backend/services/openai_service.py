@@ -11,7 +11,7 @@ def format_as_dialogue(text: str) -> str:
     Returns formatted text in format: Speaker1: text; Speaker2: text
     """
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {
@@ -51,7 +51,7 @@ def generate_image_prompt(dialogue_text: str) -> str:
     Generate a detailed image prompt from dialogue text
     """
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {
@@ -92,7 +92,7 @@ def generate_image_with_dalle(prompt: str) -> str:
     Returns URL of generated image
     """
     try:
-        response = openai.images.generate(
+        response = openai.Image.create(
             model="dall-e-3",
             prompt=prompt,
             size="1024x1024",
